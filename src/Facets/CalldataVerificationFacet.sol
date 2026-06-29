@@ -12,7 +12,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.3.1
+/// @custom:version 1.3.2
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -288,36 +288,6 @@ contract CalldataVerificationFacet {
                     callTo,
                     stargateDataV2.sendParams.to
                 );
-        }
-
-        // Case: AcrossV3
-        if (selector == AcrossFacetV3.startBridgeTokensViaAcrossV3.selector) {
-            (, AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
-                data[4:],
-                (ILiFi.BridgeData, AcrossFacetV3.AcrossV3Data)
-            );
-
-            return
-                keccak256(dstCalldata) == keccak256(acrossV3Data.message) &&
-                keccak256(callTo) ==
-                keccak256(abi.encode(acrossV3Data.receiverAddress));
-        }
-        if (
-            selector ==
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector
-        ) {
-            (, , AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
-                data[4:],
-                (
-                    ILiFi.BridgeData,
-                    LibSwap.SwapData[],
-                    AcrossFacetV3.AcrossV3Data
-                )
-            );
-            return
-                keccak256(dstCalldata) == keccak256(acrossV3Data.message) &&
-                keccak256(callTo) ==
-                keccak256(abi.encode(acrossV3Data.receiverAddress));
         }
 
         // ---------------------------------------
