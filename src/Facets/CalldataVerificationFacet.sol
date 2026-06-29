@@ -12,7 +12,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.3.3
+/// @custom:version 1.3.4
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -104,23 +104,43 @@ contract CalldataVerificationFacet {
     /// @param data The calldata to extract the non-EVM address from
     /// @return nonEVMAddress The non-EVM address extracted from the calldata
     function extractNonEVMAddress(
-        bytes calldata data
+       bytes calldata data
     ) external pure returns (bytes32 nonEVMAddress) {
-        bytes memory callData = data;
+       // Minimum calldata layout (no source swaps):
+       // [0x00..0x03] function selector (4 bytes)
+       // [0x04..0x23] BridgeData (first slot, 32 bytes)
+       // [0x24..0x43] BridgeData offset pointer (32 bytes)
+       // [0x44..0x63] bridge-specific data offset pointer (32 bytes)
+       // [offset+0x04..offset+0x23] bridge-specific data length (32 bytes)
+       // [offset+0x24..offset+0x43] first parameter = non-EVM address (32 bytes)
+       //
+       // With source swaps an extra SwapData[] offset pointer is inserted at
+       // 0x44, pushing the bridge-specific data offset pointer to 0x64.
+       //
+       // Both branches require at least offset+0x44 bytes of calldata.
+       // We validate the minimum safe length before entering assembly.
 
-        // Non-EVM address is always the first parameter of bridge specific data
-        if (_extractBridgeData(data).hasSourceSwaps) {
-            assembly {
-                let offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
-                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
-            }
-        } else {
-            assembly {
-                let offset := mload(add(callData, 0x44)) // Get the offset of the bridge specific data
-                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
-            }
-        }
-    }
+       bytes memory callData = data;
+
+       // Non-EVM address is always the first parameter of bridge specific data
+       if (_extractBridgeData(data).hasSourceSwaps) {
+           // minimum: 4 (selector) + 3*32 (BridgeData, SwapData[], bridge-specific offsets)
+           // + 32 (length) + 32 (nonEVMAddress) = 164 bytes
+           if (callData.length < 164) revert InvalidCallData();
+           assembly {
+               let offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
+               nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+           }
+       } else {
+           // minimum: 4 (selector) + 2*32 (BridgeData, bridge-specific offsets)
+           // + 32 (length) + 32 (nonEVMAddress) = 132 bytes
+           if (callData.length < 132) revert InvalidCallData();
+           assembly {
+               let offset := mload(add(callData, 0x44)) // Get the offset of the bridge specific data
+               nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+           }
+       }
+}
 
     /// @notice Extracts the generic swap parameters from the calldata
     /// @param data The calldata to extract the generic swap parameters from
