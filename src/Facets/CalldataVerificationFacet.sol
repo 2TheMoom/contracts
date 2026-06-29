@@ -12,7 +12,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.3.2
+/// @custom:version 1.3.3
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -150,7 +150,7 @@ contract CalldataVerificationFacet {
         // _receiver: 32 bytes
         // _minAmountOut: 32 bytes
         // _swapData: 256 bytes
-        if (data.length <= 484) {
+        if (data.length < 484) {
             revert InvalidCallData();
         }
 
